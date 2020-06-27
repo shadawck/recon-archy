@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"github.com/remiflavien1/recon-archy/selenium"
+)
 
 func main() {
-	fmt.Println("Hello, world.")
+
+	selenium.LinkedinUsers("ATOS")
+
 }
