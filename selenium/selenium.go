@@ -169,12 +169,25 @@ func start(comp string) []string {
 	}
 
 	// Scroll the page to load the page entirely
+	Scroll(wd)
+
+	// TODO -> Add filter selection to select only wanted companies or subsidiary companies
+	// get and process actual search url
+	// URL structc : https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
 	wd.SetImplicitWaitTimeout(time.Second * 3)
-	time.Sleep(time.Second * 2)
-	wd.KeyDown(selenium.PageDownKey)
-	wd.KeyUp(selenium.PageDownKey)
-	time.Sleep(time.Second * 2)
-	//wd.SendModifier(selenium.PageDownKey, true)
+	currentURL, err := wd.CurrentURL()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s", currentURL)
+
+	encodedURL := DecodeReconstruct(currentURL)
+	// reconstruct URL
+
+	if err := wd.Get(encodedURL); err != nil {
+		panic(err)
+	}
+
 	/* Get and Format data */
 	// Loop Through pages (1..n)
 
@@ -183,6 +196,7 @@ func start(comp string) []string {
 	for i := 0; i < lenPage; i++ {
 
 		wd.SetImplicitWaitTimeout(time.Second * 3)
+		time.Sleep(time.Second * 2)
 		users, err := wd.FindElements(selenium.ByCSSSelector, ".actor-name")
 		if err != nil {
 			panic(err)
