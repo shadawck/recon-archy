@@ -197,7 +197,7 @@ func start(comp string) []string {
 			panic(err)
 		}
 
-		profileURLText := WbToString(profileURL)
+		profileURLText := WbAttrToString(profileURL, "href")
 		SlicePrint(profileURLText)
 
 		// Description

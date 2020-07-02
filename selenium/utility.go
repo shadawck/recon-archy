@@ -40,3 +40,13 @@ func WbToString(wb []selenium.WebElement) []string {
 	}
 	return slice
 }
+
+/* Convert a slice of WebElement Attribute to string slice
+ */
+func WbAttrToString(wb []selenium.WebElement, attr string) []string {
+	slice := make([]string, len(wb))
+	for i := range wb {
+		slice[i], _ = wb[i].GetAttribute(attr)
+	}
+	return slice
+}
