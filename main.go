@@ -6,6 +6,6 @@ import (
 
 func main() {
 
-	selenium.LinkedinUsers("ATOS")
+	selenium.LinkedinUsers("novelab")
 
 }

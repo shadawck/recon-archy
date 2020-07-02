@@ -27,6 +27,11 @@ func lenPage(wd selenium.WebDriver) int {
 	}
 
 	return conv
+}
+
+func nextPage(wd selenium.WebDriver, page int, searchURL string) {
+	baseURL := searchURL + "&origin=FACETED_SEARCH&page=" + strconv.Itoa(page)
+	wd.Get(baseURL)
 
 }
 
@@ -173,27 +178,32 @@ func start(comp string) []string {
 
 	// TODO -> Add filter selection to select only wanted companies or subsidiary companies
 	// get and process actual search url
-	// URL structc : https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
+	// URL structc: https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
 	wd.SetImplicitWaitTimeout(time.Second * 3)
 	currentURL, err := wd.CurrentURL()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%s", currentURL)
 
 	encodedURL := DecodeReconstruct(currentURL)
-	// reconstruct URL
+	fmt.Printf("%s", currentURL)
 
+	// Go to filtered search page
 	if err := wd.Get(encodedURL); err != nil {
 		panic(err)
 	}
 
 	/* Get and Format data */
 	// Loop Through pages (1..n)
+	var lenPage int = lenPage(wd)
+	fmt.Printf("Len page is : %d\n", lenPage)
 
-	var lenPage int = 1
+	for i := 1; i < lenPage+1; i++ {
+		fmt.Printf("page index: %d\n", i)
 
-	for i := 0; i < lenPage; i++ {
+		nextPage(wd, i, encodedURL)
+
+		Scroll(wd)
 
 		wd.SetImplicitWaitTimeout(time.Second * 3)
 		time.Sleep(time.Second * 2)
@@ -211,7 +221,13 @@ func start(comp string) []string {
 			panic(err)
 		}
 
-		profileURLText := WbAttrToString(profileURL, "href")
+		// filter profile url
+		var selection []selenium.WebElement
+		for i := 0; i < len(profileURL); i += 2 {
+			selection = append(selection, profileURL[i])
+		}
+
+		profileURLText := WbAttrToString(selection, "href")
 		SlicePrint(profileURLText)
 
 		// Description
@@ -231,9 +247,6 @@ func start(comp string) []string {
 		locText := WbToString(location)
 		SlicePrint(locText)
 
-		// function to click on the next Button
-		// nextPage()
-
 	}
 
 	return make([]string, 1)
@@ -241,5 +254,5 @@ func start(comp string) []string {
 
 /**/
 func LinkedinUsers(comp string) {
-	start("sncf")
+	start(comp)
 }
