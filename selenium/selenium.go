@@ -7,10 +7,28 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/tebeka/selenium"
 )
+
+func lenPage(wd selenium.WebDriver) int {
+	pageNumber, err := wd.FindElements(selenium.ByCSSSelector, ".artdeco-pagination__indicator.artdeco-pagination__indicator--number")
+	if err != nil {
+		panic(err)
+	}
+
+	lenPage, _ := pageNumber[len(pageNumber)-1].Text()
+
+	conv, err := strconv.Atoi(lenPage)
+	if err != nil {
+		panic(err)
+	}
+
+	return conv
+
+}
 
 /*
 Utity function to init Selenium
@@ -94,6 +112,7 @@ func start(comp string) []string {
 	}
 
 	// Just display the username (page loading)
+	wd.SetImplicitWaitTimeout(time.Second * 2)
 	connectedUser, err := wd.FindElement(selenium.ByCSSSelector, ".profile-rail-card__actor-link")
 	if err != nil {
 		panic(err)
@@ -133,14 +152,13 @@ func start(comp string) []string {
 		panic(err)
 	}
 
-	fmt.Print(firstCompanyLink)
-
 	/* SOLUTION 2 - INPUT 2: Navigate directly to the companies page; The url need to be input by the user */
 	//if err := wd.Get(compURL); err != nil {
 	//	panic(err)
 	//}
 
 	// Click on "See all X Employees on Linkedin"
+	wd.SetImplicitWaitTimeout(time.Second * 3)
 	employees, err := wd.FindElement(selenium.ByCSSSelector, ".ember-view.link-without-visited-state.inline-block")
 	if err != nil {
 		panic(err)
@@ -150,47 +168,64 @@ func start(comp string) []string {
 		panic(err)
 	}
 
-	//// Search for company name
-	//searchBox, err := wd.FindElement(selenium.ByCSSSelector, ".search-global-typeahead__input")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//
-	//err = searchBox.SendKeys("atos")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//searchButton, err := wd.FindElement(selenium.ByCSSSelector, ".search-global-typeahead__button")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//if err := searchButton.Click(); err != nil {
-	//	panic(err)
-	//}
-	//
-	//// Click on more button to display filter options
-	//moreButton, err := wd.FindElement(selenium.ByCSSSelector, ".artdeco-dropdown__trigger")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//if err := moreButton.Click(); err != nil {
-	//	panic(err)
-	//}
-	//
-	//// Click on "companies" to filter result by companies
+	// Scroll the page to load the page entirely
+	wd.SetImplicitWaitTimeout(time.Second * 3)
+	time.Sleep(time.Second * 2)
+	wd.KeyDown(selenium.PageDownKey)
+	wd.KeyUp(selenium.PageDownKey)
+	time.Sleep(time.Second * 2)
+	//wd.SendModifier(selenium.PageDownKey, true)
+	/* Get and Format data */
+	// Loop Through pages (1..n)
 
-	// return empty for testing
+	var lenPage int = 1
+
+	for i := 0; i < lenPage; i++ {
+
+		wd.SetImplicitWaitTimeout(time.Second * 3)
+		users, err := wd.FindElements(selenium.ByCSSSelector, ".actor-name")
+		if err != nil {
+			panic(err)
+		}
+
+		usersText := WbToString(users)
+		SlicePrint(usersText)
+
+		// ProfileUrl
+		profileURL, err := wd.FindElements(selenium.ByCSSSelector, ".search-result__result-link")
+		if err != nil {
+			panic(err)
+		}
+
+		profileURLText := WbToString(profileURL)
+		SlicePrint(profileURLText)
+
+		// Description
+		description, err := wd.FindElements(selenium.ByCSSSelector, ".subline-level-1")
+		if err != nil {
+			panic(err)
+		}
+		descText := WbToString(description)
+		SlicePrint(descText)
+
+		// Location
+		location, err := wd.FindElements(selenium.ByCSSSelector, ".subline-level-2")
+		if err != nil {
+			panic(err)
+		}
+
+		locText := WbToString(location)
+		SlicePrint(locText)
+
+		// function to click on the next Button
+		// nextPage()
+
+	}
+
 	return make([]string, 1)
 }
 
-/* LinkedinUsers
-Return list of users related to a company
-Step to perform :
-1 - Go to Linkedin.com
-2 - Search for the company name
-3 - Tap on the company page
-4 - Tap on ~"See Peeople working here"
-*/
+/**/
 func LinkedinUsers(comp string) {
-	start("atos")
+	start("sncf")
 }
