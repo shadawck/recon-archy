@@ -7,24 +7,33 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
+	"github.com/matryer/try"
 	"github.com/tebeka/selenium"
+	"github.com/tebeka/selenium/firefox"
 )
 
 func lenPage(wd selenium.WebDriver) int {
-	pageNumber, err := wd.FindElements(selenium.ByCSSSelector, ".artdeco-pagination__indicator.artdeco-pagination__indicator--number")
+	// Scroll the page to ensure page is entirely loaded
+	scroll(wd, 2)
+
+	pageNumber := findsRetry(wd, ".artdeco-pagination__indicator--number.ember-view")
+
+	lenPage, err := pageNumber[len(pageNumber)-1].Text()
 	if err != nil {
 		panic(err)
 	}
-
-	lenPage, _ := pageNumber[len(pageNumber)-1].Text()
 
 	conv, err := strconv.Atoi(lenPage)
 	if err != nil {
 		panic(err)
 	}
+
+	log.Printf("\nText Page Number is : %s\n", lenPage)
 
 	return conv
 }
@@ -32,49 +41,68 @@ func lenPage(wd selenium.WebDriver) int {
 func nextPage(wd selenium.WebDriver, page int, searchURL string) {
 	baseURL := searchURL + "&origin=FACETED_SEARCH&page=" + strconv.Itoa(page)
 	wd.Get(baseURL)
-
 }
 
-/*
-Utity function to init Selenium
+/* Convert WebElement slice to String slice
+ */
+func wbToStringSlice(wb []selenium.WebElement) []string {
+	slice := make([]string, len(wb))
+	for i := range wb {
+		slice[i], _ = wb[i].Text()
+	}
+
+	return slice
+}
+
+/* Convert a slice of WebElement Attribute to string slice
+ */
+func wbAttrToStringSlice(wb []selenium.WebElement, attr string) []string {
+	slice := make([]string, len(wb))
+	for i := range wb {
+		slice[i], _ = wb[i].GetAttribute(attr)
+	}
+	return slice
+}
+
+/* Scrolling simulation
+   TODO -> check if scrolling with loadScript in JS is faster or not
 */
-func start(comp string) []string {
-
-	const (
-		// These paths will be different on your system.
-		seleniumPath    = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server.jar"
-		geckoDriverPath = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
-		port            = 8080
-	)
-	opts := []selenium.ServiceOption{
-		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
-		selenium.GeckoDriver(geckoDriverPath), // Specify the path to GeckoDriver in order to use Firefox.
-		//selenium.Output(os.Stderr),            // Output debug information to STDERR.
+func scroll(wd selenium.WebDriver, x int) {
+	wd.SetImplicitWaitTimeout(time.Second)
+	// scroll x time (for headless mode for example)
+	for i := 0; i < x; i++ {
+		wd.KeyDown(selenium.PageDownKey)
+		wd.KeyUp(selenium.PageDownKey)
 	}
+}
 
-	selenium.SetDebug(false)
-	service, err := selenium.NewSeleniumService(seleniumPath, port, opts...)
+/* Store data
+ */
+func dataStorage() []string {
 
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer service.Stop()
+	return []string{}
+}
 
-	caps := selenium.Capabilities{"browserName": "firefox"}
-	wd, err := selenium.NewRemote(caps, "http://localhost:8080/wd/hub")
+/*close and clean
+ */
+func CloseHandler(wd selenium.WebDriver) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\r- Ctrl+C pressed in Terminal : Cleaning Exit")
+		wd.Quit()
+		os.Exit(0)
+	}()
+}
 
-	if err != nil {
-		panic(err)
-	}
+func captchaCheck(wd selenium.WebDriver) {
+	return
+}
 
-	// Navigate to Linkedin
-	if err := wd.Get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin"); err != nil {
-		panic(err)
-	}
-
-	// SIGN-IN
-
+func signIn(wd selenium.WebDriver) {
 	// Load Credential for Linkedin SignIn
+	fmt.Println("Perform Signup")
 	file, err := os.Open(".creds")
 	if err != nil {
 		log.Fatal(err)
@@ -108,32 +136,114 @@ func start(comp string) []string {
 	}
 
 	// Click the SignIn button
-	btn, err := wd.FindElement(selenium.ByCSSSelector, ".btn__primary--large")
-	if err != nil {
-		panic(err)
-	}
+	btn := findRetry(wd, ".btn__primary--large")
+
 	if err := btn.Click(); err != nil {
 		panic(err)
 	}
 
-	// Just display the username (page loading)
-	wd.SetImplicitWaitTimeout(time.Second * 2)
-	connectedUser, err := wd.FindElement(selenium.ByCSSSelector, ".profile-rail-card__actor-link")
+	fmt.Printf("%s is Logged In\n", creds[0])
+}
+
+func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
+
+	var found selenium.WebElement
+	err := try.Do(
+
+		func(attempt int) (bool, error) {
+			var err error
+			found, err = wd.FindElement(selenium.ByCSSSelector, selector)
+
+			// Wait 100 ms between each retry
+			if err != nil {
+				time.Sleep(time.Millisecond * 100)
+			}
+			// attempt < 5 -> try 5 time
+			log.Printf("Number of attempt : %d  ", attempt)
+			return attempt < 5, err
+		})
+
+	if err != nil {
+		log.Fatalln("error:", err)
+		wd.Quit()
+	}
+	return found
+}
+
+func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
+
+	var found []selenium.WebElement
+	err := try.Do(
+
+		func(attempt int) (bool, error) {
+			var err error
+			found, err = wd.FindElements(selenium.ByCSSSelector, selector)
+
+			// Wait 100 ms between each retry (to load the page)
+			if err != nil {
+				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
+			}
+			// attempt < 5 -> try 5 time
+			log.Printf("Number of attempt : %d", attempt)
+			return attempt < 5, err
+		})
+
+	if err != nil {
+		log.Fatalln("error:", err)
+		wd.Quit()
+	}
+	return found
+}
+
+/*
+main crawler
+*/
+func Start(comp string) {
+	const (
+		// These paths will be different on your system.
+		seleniumPath    = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server.jar"
+		geckoDriverPath = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
+		htmlunitpath    = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
+		port            = 8080
+		LITTLE_WAIT     = time.Millisecond * 100
+		MEDIUM_WAIT     = time.Second
+		BIG_WAIT        = time.Second * 3
+	)
+	opts := []selenium.ServiceOption{
+		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
+		selenium.GeckoDriver(geckoDriverPath), // Specify the path to GeckoDriver in order to use Firefox.
+		//selenium.Output(os.Stderr),            // Output debug information to STDERR.
+	}
+
+	selenium.SetDebug(false)
+	service, err := selenium.NewSeleniumService(seleniumPath, port, opts...)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer service.Stop()
+
+	caps := selenium.Capabilities{"browserName": "firefox"}
+	caps.AddFirefox(firefox.Capabilities{Args: []string{"--headless", "--safe-mode"}})
+	wd, err := selenium.NewRemote(caps, "http://localhost:8080/wd/hub")
 	if err != nil {
 		panic(err)
 	}
+	// Wait for Ctr-C or Killing signal
+	CloseHandler(wd)
 
-	var output string
-
-	time.Sleep(time.Millisecond * 100)
-	wd.SetImplicitWaitTimeout(time.Second * 2)
-
-	output, err = connectedUser.Text()
-	if err != nil {
+	// Navigate to Linkedin
+	fmt.Println("Navigating to Signup")
+	if err := wd.Get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin"); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("\n %s is connected\n", output)
+	/*captcha checking -> if captcha :
+	*     - clean exit
+	*     - run in gui mode to solve captcha
+	 */
+
+	signIn(wd)
 
 	/* SOLUTION 1 - INPUT 1 : Navigate to the companies page with just the companies name */
 	// Navigate to Linkedin companies search result (for givven company name "comp")
@@ -145,11 +255,10 @@ func start(comp string) []string {
 	}
 
 	// click on the first company found in the search result
-	time.Sleep(time.Millisecond * 100)
-	firstCompanyLink, err := wd.FindElements(selenium.ByCSSSelector, ".app-aware-link.ember-view")
-	if err != nil {
-		panic(err)
-	}
+	fmt.Print("Searching Company Page")
+	time.Sleep(LITTLE_WAIT)
+	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view")
+	fmt.Println("Company found")
 
 	// click on the second link on the slice. In fact image link can't be clicked so just use the second link
 	// TODO Need To be OPTIMIZED -> I get all the "app-aware-link" of the page but i just need the first one
@@ -163,30 +272,29 @@ func start(comp string) []string {
 	//}
 
 	// Click on "See all X Employees on Linkedin"
-	wd.SetImplicitWaitTimeout(time.Second * 3)
-	employees, err := wd.FindElement(selenium.ByCSSSelector, ".ember-view.link-without-visited-state.inline-block")
-	if err != nil {
-		panic(err)
-	}
+	fmt.Printf("Getting %s employees", comp)
+	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block")
 
 	if err := employees.Click(); err != nil {
 		panic(err)
 	}
 
 	// Scroll the page to load the page entirely
-	Scroll(wd)
+	scroll(wd, 2)
 
 	// TODO -> Add filter selection to select only wanted companies or subsidiary companies
 	// get and process actual search url
 	// URL structc: https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
-	wd.SetImplicitWaitTimeout(time.Second * 3)
+	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 	currentURL, err := wd.CurrentURL()
 	if err != nil {
 		panic(err)
 	}
 
+	fmt.Printf("\nDecoding URL...\n")
 	encodedURL := DecodeReconstruct(currentURL)
-	fmt.Printf("%s", currentURL)
+	fmt.Printf("\nURL re-encoded\n")
 
 	// Go to filtered search page
 	if err := wd.Get(encodedURL); err != nil {
@@ -195,31 +303,27 @@ func start(comp string) []string {
 
 	/* Get and Format data */
 	// Loop Through pages (1..n)
-	var lenPage int = lenPage(wd)
-	fmt.Printf("Len page is : %d\n", lenPage)
+	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+	fmt.Printf("\nGetting page number\n")
 
+	//Scroll(wd)
+	scroll(wd, 2)
+	var lenPage int = lenPage(wd)
+
+	// Replace SlicePrint with storing function
 	for i := 1; i < lenPage+1; i++ {
-		fmt.Printf("page index: %d\n", i)
 
 		nextPage(wd, i, encodedURL)
+		scroll(wd, 2)
 
-		Scroll(wd)
+		wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+		users := findsRetry(wd, ".actor-name")
 
-		wd.SetImplicitWaitTimeout(time.Second * 3)
-		time.Sleep(time.Second * 2)
-		users, err := wd.FindElements(selenium.ByCSSSelector, ".actor-name")
-		if err != nil {
-			panic(err)
-		}
-
-		usersText := WbToString(users)
+		usersText := wbToStringSlice(users)
 		SlicePrint(usersText)
 
 		// ProfileUrl
-		profileURL, err := wd.FindElements(selenium.ByCSSSelector, ".search-result__result-link")
-		if err != nil {
-			panic(err)
-		}
+		profileURL := findsRetry(wd, ".search-result__result-link")
 
 		// filter profile url
 		var selection []selenium.WebElement
@@ -227,32 +331,22 @@ func start(comp string) []string {
 			selection = append(selection, profileURL[i])
 		}
 
-		profileURLText := WbAttrToString(selection, "href")
+		profileURLText := wbAttrToStringSlice(selection, "href")
 		SlicePrint(profileURLText)
 
 		// Description
-		description, err := wd.FindElements(selenium.ByCSSSelector, ".subline-level-1")
-		if err != nil {
-			panic(err)
-		}
-		descText := WbToString(description)
+		description := findsRetry(wd, ".subline-level-1")
+
+		descText := wbToStringSlice(description)
 		SlicePrint(descText)
 
 		// Location
-		location, err := wd.FindElements(selenium.ByCSSSelector, ".subline-level-2")
-		if err != nil {
-			panic(err)
-		}
+		location := findsRetry(wd, ".subline-level-2")
 
-		locText := WbToString(location)
+		locText := wbToStringSlice(location)
 		SlicePrint(locText)
-
 	}
 
-	return make([]string, 1)
-}
-
-/**/
-func LinkedinUsers(comp string) {
-	start(comp)
+	wd.Close()
+	wd.Quit()
 }

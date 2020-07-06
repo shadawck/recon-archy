@@ -6,6 +6,6 @@ import (
 
 func main() {
 
-	selenium.LinkedinUsers("novelab")
+	selenium.Start("novelab")
 
 }
