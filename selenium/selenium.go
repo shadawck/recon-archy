@@ -17,6 +17,7 @@ import (
 	"github.com/tebeka/selenium/firefox"
 )
 
+// Get number of search page found
 func lenPage(wd selenium.WebDriver) int {
 	// Scroll the page to ensure page is entirely loaded
 	scroll(wd, 2)
@@ -38,13 +39,13 @@ func lenPage(wd selenium.WebDriver) int {
 	return conv
 }
 
+// Go to next search Page
 func nextPage(wd selenium.WebDriver, page int, searchURL string) {
 	baseURL := searchURL + "&origin=FACETED_SEARCH&page=" + strconv.Itoa(page)
 	wd.Get(baseURL)
 }
 
-/* Convert WebElement slice to String slice
- */
+// Convert WebElement slice to String slice
 func wbToStringSlice(wb []selenium.WebElement) []string {
 	slice := make([]string, len(wb))
 	for i := range wb {
@@ -54,8 +55,7 @@ func wbToStringSlice(wb []selenium.WebElement) []string {
 	return slice
 }
 
-/* Convert a slice of WebElement Attribute to string slice
- */
+// Convert a slice of WebElement Attribute to string slice
 func wbAttrToStringSlice(wb []selenium.WebElement, attr string) []string {
 	slice := make([]string, len(wb))
 	for i := range wb {
@@ -64,9 +64,8 @@ func wbAttrToStringSlice(wb []selenium.WebElement, attr string) []string {
 	return slice
 }
 
-/* Scrolling simulation
-   TODO -> check if scrolling with loadScript in JS is faster or not
-*/
+// Scrolling simulation
+//   TODO -> check if scrolling with loadScript in JS is faster or not
 func scroll(wd selenium.WebDriver, x int) {
 	wd.SetImplicitWaitTimeout(time.Second)
 	// scroll x time (for headless mode for example)
@@ -76,15 +75,12 @@ func scroll(wd selenium.WebDriver, x int) {
 	}
 }
 
-/* Store data
- */
 func dataStorage() []string {
 
 	return []string{}
 }
 
-/*close and clean
- */
+// CloseHandler handle program Interruption and perform a clean exit
 func CloseHandler(wd selenium.WebDriver) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -96,10 +92,12 @@ func CloseHandler(wd selenium.WebDriver) {
 	}()
 }
 
+// captchaCheck check if there is a google captcha on the current page
 func captchaCheck(wd selenium.WebDriver) {
 	return
 }
 
+// signIn perform Linkedin SignIn
 func signIn(wd selenium.WebDriver) {
 	// Load Credential for Linkedin SignIn
 	fmt.Println("Perform Signup")
@@ -145,6 +143,7 @@ func signIn(wd selenium.WebDriver) {
 	fmt.Printf("%s is Logged In\n", creds[0])
 }
 
+// findRetry Retry for findElement function
 func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 
 	var found selenium.WebElement
@@ -159,7 +158,7 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 				time.Sleep(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			log.Printf("Number of attempt : %d  ", attempt)
+			log.Printf("\nNumber of attempt : %d  ", attempt)
 			return attempt < 5, err
 		})
 
@@ -170,6 +169,7 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 	return found
 }
 
+// findRetry Retry for findElements function
 func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 
 	var found []selenium.WebElement
@@ -184,7 +184,7 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			log.Printf("Number of attempt : %d", attempt)
+			log.Printf("\nNumber of attempt : %d", attempt)
 			return attempt < 5, err
 		})
 
@@ -195,9 +195,7 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 	return found
 }
 
-/*
-main crawler
-*/
+// Start setup and start the main process
 func Start(comp string) {
 	const (
 		// These paths will be different on your system.
@@ -280,35 +278,27 @@ func Start(comp string) {
 		panic(err)
 	}
 
-	// Scroll the page to load the page entirely
-	scroll(wd, 2)
-
 	// TODO -> Add filter selection to select only wanted companies or subsidiary companies
 	// get and process actual search url
 	// URL structc: https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
-	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+	wd.SetImplicitWaitTimeout(BIG_WAIT)
 	currentURL, err := wd.CurrentURL()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("\nDecoding URL...\n")
+	fmt.Printf("\nDecoding URL...")
 	encodedURL := DecodeReconstruct(currentURL)
-	fmt.Printf("\nURL re-encoded\n")
+	fmt.Printf("\n...URL Re-encoded")
 
 	// Go to filtered search page
 	if err := wd.Get(encodedURL); err != nil {
 		panic(err)
 	}
 
-	/* Get and Format data */
-	// Loop Through pages (1..n)
-	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
-	fmt.Printf("\nGetting page number\n")
-
-	//Scroll(wd)
 	scroll(wd, 2)
 	var lenPage int = lenPage(wd)
+	fmt.Printf("\nThere is %d page to crawl !", lenPage)
 
 	// Replace SlicePrint with storing function
 	for i := 1; i < lenPage+1; i++ {
@@ -322,7 +312,6 @@ func Start(comp string) {
 		usersText := wbToStringSlice(users)
 		SlicePrint(usersText)
 
-		// ProfileUrl
 		profileURL := findsRetry(wd, ".search-result__result-link")
 
 		// filter profile url
@@ -334,15 +323,12 @@ func Start(comp string) {
 		profileURLText := wbAttrToStringSlice(selection, "href")
 		SlicePrint(profileURLText)
 
-		// Description
 		description := findsRetry(wd, ".subline-level-1")
-
 		descText := wbToStringSlice(description)
+		WriteFile("../"+comp+"archy", descText)
 		SlicePrint(descText)
 
-		// Location
 		location := findsRetry(wd, ".subline-level-2")
-
 		locText := wbToStringSlice(location)
 		SlicePrint(locText)
 	}
