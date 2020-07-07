@@ -155,7 +155,7 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 
 			// Wait 100 ms between each retry
 			if err != nil {
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 500)
 			}
 			// attempt < 5 -> try 5 time
 			log.Printf("\nNumber of attempt : %d  ", attempt)
@@ -163,8 +163,7 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 		})
 
 	if err != nil {
-		log.Fatalln("error:", err)
-		wd.Quit()
+		panic(err)
 	}
 	return found
 }
@@ -281,13 +280,18 @@ func Start(comp string) {
 	// TODO -> Add filter selection to select only wanted companies or subsidiary companies
 	// get and process actual search url
 	// URL structc: https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
+	scroll(wd, 2) // SUPER IMPORRTANT SCROLL
 	wd.SetImplicitWaitTimeout(BIG_WAIT)
+
 	currentURL, err := wd.CurrentURL()
 	if err != nil {
 		panic(err)
 	}
 
+	fmt.Printf("The current url to be decoded is %s", currentURL)
+
 	fmt.Printf("\nDecoding URL...")
+	time.Sleep(time.Second * 3)
 	encodedURL := DecodeReconstruct(currentURL)
 	fmt.Printf("\n...URL Re-encoded")
 
@@ -325,7 +329,7 @@ func Start(comp string) {
 
 		description := findsRetry(wd, ".subline-level-1")
 		descText := wbToStringSlice(description)
-		WriteFile("../"+comp+"archy", descText)
+		WriteFile("../data_"+comp, descText)
 		SlicePrint(descText)
 
 		location := findsRetry(wd, ".subline-level-2")

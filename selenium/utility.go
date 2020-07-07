@@ -8,6 +8,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/matryer/try"
+	"github.com/tebeka/selenium"
 )
 
 // ReadFile Read a file and return the line as a []string
@@ -21,7 +25,7 @@ func ReadFile(f *os.File) []string {
 
 // WriteFile Write []string to file "fileName" and line by line
 func WriteFile(fileName string, buff []string) {
-	f, err := os.OpenFile("data.archy", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fileName+".archy", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -61,4 +65,29 @@ func DecodeReconstruct(searchURL string) string {
 	facetCompanies := url.QueryEscape(toEncode)
 	encodedBuild := spl[0] + facetCompanies
 	return encodedBuild
+}
+
+// DecodeRetry Attempt getting currentURL
+func DecodeRetry(wd selenium.WebDriver, currentURL string) string {
+
+	var encodedURL string
+	err := try.Do(
+
+		func(attempt int) (bool, error) {
+			var err error
+			encodedURL = DecodeReconstruct(currentURL)
+
+			// Wait 100 ms between each retry (to load the page)
+			if err != nil {
+				wd.SetImplicitWaitTimeout(time.Millisecond * 1000)
+			}
+			// attempt < 5 -> try 5 time
+			return attempt < 5, err
+		})
+
+	if err != nil {
+		log.Fatalln("error:", err)
+		wd.Quit()
+	}
+	return encodedURL
 }
