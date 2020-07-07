@@ -34,7 +34,7 @@ func lenPage(wd selenium.WebDriver) int {
 		panic(err)
 	}
 
-	log.Printf("\nText Page Number is : %s\n", lenPage)
+	fmt.Printf("\nText Page Number is : %s\n", lenPage)
 
 	return conv
 }
@@ -75,9 +75,38 @@ func scroll(wd selenium.WebDriver, x int) {
 	}
 }
 
-func dataStorage() []string {
+func initService() selenium.WebDriver{
+	const (
+		// These paths will be different on your system.
+		seleniumPath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar"
+		geckoDriverPath = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
+		htmlunitpath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
+		port            = 4444
+	)
+	opts := []selenium.ServiceOption{
+		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
+		selenium.GeckoDriver(geckoDriverPath), // Specify the path to GeckoDriver in order to use Firefox.
+		//selenium.Output(os.Stderr),            // Output debug information to STDERR.
+	}
 
-	return []string{}
+	selenium.SetDebug(false)
+	service, err := selenium.NewSeleniumService(seleniumPath, port, opts...)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer service.Stop()
+
+	caps := selenium.Capabilities{"browserName": "firefox"}
+	caps.AddFirefox(firefox.Capabilities{Args: []string{"--headless", "--safe-mode"}})
+	wd, err := selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+	if err != nil {
+		panic(err)
+	}
+	// Wait for Ctr-C or Killing signal
+	CloseHandler(wd)
+	
+	return wd
 }
 
 // CloseHandler handle program Interruption and perform a clean exit
@@ -86,7 +115,7 @@ func CloseHandler(wd selenium.WebDriver) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		fmt.Println("\r- Ctrl+C pressed in Terminal : Cleaning Exit")
+		fmt.Printf("\n\r- Ctrl+C pressed in Terminal : Cleaning Exit")
 		wd.Quit()
 		os.Exit(0)
 	}()
@@ -99,8 +128,14 @@ func captchaCheck(wd selenium.WebDriver) {
 
 // signIn perform Linkedin SignIn
 func signIn(wd selenium.WebDriver) {
+		// Navigate to Linkedin
+	fmt.Printf("\nNavigating to Signup")
+	if err := wd.Get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin"); err != nil {
+		panic(err)
+	}
+
 	// Load Credential for Linkedin SignIn
-	fmt.Println("Perform Signup")
+	fmt.Printf("\nPerform Signup")
 	file, err := os.Open(".creds")
 	if err != nil {
 		log.Fatal(err)
@@ -140,7 +175,7 @@ func signIn(wd selenium.WebDriver) {
 		panic(err)
 	}
 
-	fmt.Printf("%s is Logged In\n", creds[0])
+	fmt.Printf("\nLogged In !")
 }
 
 // findRetry Retry for findElement function
@@ -155,15 +190,16 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 
 			// Wait 100 ms between each retry
 			if err != nil {
-				time.Sleep(time.Millisecond * 500)
+				time.Sleep(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			log.Printf("\nNumber of attempt : %d  ", attempt)
+			fmt.Printf("\n (attempts %d)", attempt)
 			return attempt < 5, err
 		})
 
 	if err != nil {
 		panic(err)
+		wd.Quit()
 	}
 	return found
 }
@@ -183,79 +219,46 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			log.Printf("\nNumber of attempt : %d", attempt)
+			fmt.Printf("\n (attempts %d)", attempt)
 			return attempt < 5, err
 		})
 
 	if err != nil {
-		log.Fatalln("error:", err)
+		panic(err)
 		wd.Quit()
 	}
 	return found
 }
 
+func searchPage(){
+
+}
+
+
 // Start setup and start the main process
 func Start(comp string) {
-	const (
-		// These paths will be different on your system.
-		seleniumPath    = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server.jar"
-		geckoDriverPath = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
-		htmlunitpath    = "/home/wr3ck3r/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
-		port            = 8080
+
+	const(
 		LITTLE_WAIT     = time.Millisecond * 100
 		MEDIUM_WAIT     = time.Second
 		BIG_WAIT        = time.Second * 3
 	)
-	opts := []selenium.ServiceOption{
-		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
-		selenium.GeckoDriver(geckoDriverPath), // Specify the path to GeckoDriver in order to use Firefox.
-		//selenium.Output(os.Stderr),            // Output debug information to STDERR.
-	}
 
-	selenium.SetDebug(false)
-	service, err := selenium.NewSeleniumService(seleniumPath, port, opts...)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer service.Stop()
-
-	caps := selenium.Capabilities{"browserName": "firefox"}
-	caps.AddFirefox(firefox.Capabilities{Args: []string{"--headless", "--safe-mode"}})
-	wd, err := selenium.NewRemote(caps, "http://localhost:8080/wd/hub")
-	if err != nil {
-		panic(err)
-	}
-	// Wait for Ctr-C or Killing signal
-	CloseHandler(wd)
-
-	// Navigate to Linkedin
-	fmt.Println("Navigating to Signup")
-	if err := wd.Get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin"); err != nil {
-		panic(err)
-	}
-
-	/*captcha checking -> if captcha :
-	*     - clean exit
-	*     - run in gui mode to solve captcha
-	 */
-
+	wd := initService()
+	// captcha checking -> if captcha 
 	signIn(wd)
-
 	/* SOLUTION 1 - INPUT 1 : Navigate to the companies page with just the companies name */
 	// Navigate to Linkedin companies search result (for givven company name "comp")
 
 	var searchURL string = "https://www.linkedin.com/search/results/companies/?keywords=" + comp + "&origin=SWITCH_SEARCH_VERTICAL"
-
 	if err := wd.Get(searchURL); err != nil {
 		panic(err)
 	}
 
-	// click on the first company found in the search result
-	fmt.Print("Searching Company Page")
+	fmt.Printf("\nSearching Company Page")
 	time.Sleep(LITTLE_WAIT)
-	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view")
-	fmt.Println("Company found")
+	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view") 	// click on the first company found in the search result
+	fmt.Printf("\nCompany found")
 
 	// click on the second link on the slice. In fact image link can't be clicked so just use the second link
 	// TODO Need To be OPTIMIZED -> I get all the "app-aware-link" of the page but i just need the first one
@@ -263,13 +266,13 @@ func Start(comp string) {
 		panic(err)
 	}
 
-	/* SOLUTION 2 - INPUT 2: Navigate directly to the companies page; The url need to be input by the user */
-	//if err := wd.Get(compURL); err != nil {
-	//	panic(err)
-	//}
+	/* SOLUTION 2 - INPUT 2: Navigate directly to the companies page; The url need to be input by the user
+	if err := wd.Get(compURL); err != nil {
+		panic(err)
+	}*/
 
 	// Click on "See all X Employees on Linkedin"
-	fmt.Printf("Getting %s employees", comp)
+	fmt.Printf("\nGetting %s employees", comp)
 	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block")
 
@@ -288,13 +291,15 @@ func Start(comp string) {
 		panic(err)
 	}
 
-	fmt.Printf("The current url to be decoded is %s", currentURL)
+	fmt.Printf("\nThe current url to be decoded is %s", currentURL)
 
 	fmt.Printf("\nDecoding URL...")
-	time.Sleep(time.Second * 3)
-	encodedURL := DecodeReconstruct(currentURL)
-	fmt.Printf("\n...URL Re-encoded")
+	//time.Sleep(time.Second * 3)
+	//encodedURL := DecodeReconstruct(currentURL)
+	encodedURL := DecodeRetry(wd)
+	fmt.Printf("\nURL Re-encoded...")
 
+	// IMPLEMENT SESSIONS SPLITTING
 	// Go to filtered search page
 	if err := wd.Get(encodedURL); err != nil {
 		panic(err)
@@ -310,31 +315,30 @@ func Start(comp string) {
 		nextPage(wd, i, encodedURL)
 		scroll(wd, 2)
 
-		wd.SetImplicitWaitTimeout(LITTLE_WAIT)
-		users := findsRetry(wd, ".actor-name")
-
-		usersText := wbToStringSlice(users)
-		SlicePrint(usersText)
-
-		profileURL := findsRetry(wd, ".search-result__result-link")
-
-		// filter profile url
-		var selection []selenium.WebElement
-		for i := 0; i < len(profileURL); i += 2 {
-			selection = append(selection, profileURL[i])
-		}
-
-		profileURLText := wbAttrToStringSlice(selection, "href")
-		SlicePrint(profileURLText)
+		//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+		//users := findsRetry(wd, ".actor-name")
+		//
+		//usersText := wbToStringSlice(users)
+		//SlicePrint(usersText)
+		//
+		//profileURL := findsRetry(wd, ".search-result__result-link")
+		//
+		//// filter profile url
+		//var selection []selenium.WebElement
+		//for i := 0; i < len(profileURL); i += 2 {
+		//	selection = append(selection, profileURL[i])
+		//}
+		//
+		//profileURLText := wbAttrToStringSlice(selection, "href")
+		//SlicePrint(profileURLText)
 
 		description := findsRetry(wd, ".subline-level-1")
 		descText := wbToStringSlice(description)
-		WriteFile("../data_"+comp, descText)
-		SlicePrint(descText)
+		WriteFile("./data/data_"+comp, descText)
 
-		location := findsRetry(wd, ".subline-level-2")
-		locText := wbToStringSlice(location)
-		SlicePrint(locText)
+		//location := findsRetry(wd, ".subline-level-2")
+		//locText := wbToStringSlice(location)
+		//SlicePrint(locText)
 	}
 
 	wd.Close()

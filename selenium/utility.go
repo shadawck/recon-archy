@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/matryer/try"
 	"github.com/tebeka/selenium"
@@ -46,14 +47,13 @@ func WriteFile(fileName string, buff []string) {
 
 //SlicePrint Print String Slice
 func SlicePrint(s []string) {
-	fmt.Print("\n")
 	for i, v := range s {
-		fmt.Printf("%d, %s\n", i, v)
+		fmt.Printf("\n%d, %s", i, v)
 	}
 }
 
 // DecodeReconstruct Decode the searchURL and build the search URL for the main company
-func DecodeReconstruct(searchURL string) string {
+func DecodeReconstruct(searchURL string) (string, error){
 	decodedURL, err := url.QueryUnescape(searchURL)
 	if err != nil {
 		log.Fatal(err)
@@ -61,25 +61,40 @@ func DecodeReconstruct(searchURL string) string {
 	}
 
 	spl := strings.Split(decodedURL, "\"")
+	SlicePrint(spl)
+
+	if len(spl) < 2 {
+		fmt.Printf("\nthere's an error here")
+		return "", errors.New("Getting company page and not filtered page")
+	}
+
 	toEncode := "\"" + spl[1] + "\"" + "]"
 	facetCompanies := url.QueryEscape(toEncode)
 	encodedBuild := spl[0] + facetCompanies
-	return encodedBuild
+
+	return encodedBuild, err
+
 }
 
 // DecodeRetry Attempt getting currentURL
-func DecodeRetry(wd selenium.WebDriver, currentURL string) string {
-
+func DecodeRetry(wd selenium.WebDriver) string {
+	
 	var encodedURL string
 	err := try.Do(
 
 		func(attempt int) (bool, error) {
 			var err error
-			encodedURL = DecodeReconstruct(currentURL)
+			currentURL, err := wd.CurrentURL()
+			if err != nil {
+				panic(err)
+			}
+
+			encodedURL, err = DecodeReconstruct(currentURL)
 
 			// Wait 100 ms between each retry (to load the page)
-			if err != nil {
-				wd.SetImplicitWaitTimeout(time.Millisecond * 1000)
+			if err != nil || encodedURL == "" {
+				scroll(wd,2)
+				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
 			return attempt < 5, err

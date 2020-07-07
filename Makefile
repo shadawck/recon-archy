@@ -19,6 +19,11 @@ install:
 run: build install export
 	./recon-archy
 
+# For selenium standalone 
+launch: 
+	java -jar ~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar &
+	./recon-archy
+
 clean:
 	rm -rf .vscode
 
