@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	//"os/exec"
 	"strings"
 	"time"
 	"errors"
@@ -106,3 +107,5 @@ func DecodeRetry(wd selenium.WebDriver) string {
 	}
 	return encodedURL
 }
+
+

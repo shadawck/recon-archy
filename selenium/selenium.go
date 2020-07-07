@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"syscall"
@@ -16,6 +17,19 @@ import (
 	"github.com/tebeka/selenium"
 	"github.com/tebeka/selenium/firefox"
 )
+
+
+const (
+	// These paths will be different on your system.
+	seleniumPath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar"
+	geckoDriverPath = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
+	htmlunitpath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
+	LITTLE_WAIT     = time.Millisecond * 100
+	MEDIUM_WAIT     = time.Second
+	BIG_WAIT        = time.Second * 3
+	port            = 4444
+)
+
 
 // Get number of search page found
 func lenPage(wd selenium.WebDriver) int {
@@ -75,14 +89,8 @@ func scroll(wd selenium.WebDriver, x int) {
 	}
 }
 
-func initService() selenium.WebDriver{
-	const (
-		// These paths will be different on your system.
-		seleniumPath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar"
-		geckoDriverPath = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
-		htmlunitpath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
-		port            = 4444
-	)
+func initService(port int) selenium.WebDriver{
+
 	opts := []selenium.ServiceOption{
 		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
 		selenium.GeckoDriver(geckoDriverPath), // Specify the path to GeckoDriver in order to use Firefox.
@@ -99,7 +107,7 @@ func initService() selenium.WebDriver{
 
 	caps := selenium.Capabilities{"browserName": "firefox"}
 	caps.AddFirefox(firefox.Capabilities{Args: []string{"--headless", "--safe-mode"}})
-	wd, err := selenium.NewRemote(caps, "http://localhost:4444/wd/hub")
+	wd, err := selenium.NewRemote(caps, "http://localhost:"+ strconv.Itoa(port) + "/wd/hub")
 	if err != nil {
 		panic(err)
 	}
@@ -230,23 +238,10 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 	return found
 }
 
-func searchPage(){
-
-}
-
-
-// Start setup and start the main process
-func Start(comp string) {
-
-	const(
-		LITTLE_WAIT     = time.Millisecond * 100
-		MEDIUM_WAIT     = time.Second
-		BIG_WAIT        = time.Second * 3
-	)
-
-	wd := initService()
-	// captcha checking -> if captcha 
-	signIn(wd)
+// searchPage process company name and go to filtered page result for crawling
+// Implement Filtering Options
+func searchFilteredPage(wd selenium.WebDriver, comp string) string{
+	const LITTLE_WAIT = time.Millisecond * 100
 	/* SOLUTION 1 - INPUT 1 : Navigate to the companies page with just the companies name */
 	// Navigate to Linkedin companies search result (for givven company name "comp")
 
@@ -274,8 +269,8 @@ func Start(comp string) {
 	// Click on "See all X Employees on Linkedin"
 	fmt.Printf("\nGetting %s employees", comp)
 	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
-	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block")
 
+	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block")
 	if err := employees.Click(); err != nil {
 		panic(err)
 	}
@@ -284,7 +279,7 @@ func Start(comp string) {
 	// get and process actual search url
 	// URL structc: https://www.linkedin.com/search/results/people/?facetCurrentCompany=["1259"%2C"2274"%2C"208298"%2C"1260"%2C"53472064"]
 	scroll(wd, 2) // SUPER IMPORRTANT SCROLL
-	wd.SetImplicitWaitTimeout(BIG_WAIT)
+	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 
 	currentURL, err := wd.CurrentURL()
 	if err != nil {
@@ -299,15 +294,65 @@ func Start(comp string) {
 	encodedURL := DecodeRetry(wd)
 	fmt.Printf("\nURL Re-encoded...")
 
+	return encodedURL
+
+}
+
+// StartProcess Start an OS Process : Used to start selenium standalone server on n port for multiple webdriver worker 
+func StartProcess(port int) *os.Process  {
+	cmd := exec.Command("bash", "-c", "java -jar " + seleniumPath + " -port " + strconv.Itoa(port))
+	if err := cmd.Start(); err != nil {
+    	log.Printf("Failed to start cmd: %v", err)
+	}
+	fmt.Printf(" \nStartProcess : %v", cmd.Process)
+	return cmd.Process
+}
+
+// KillProcess Kill process started by StartProcess()
+func KillProcess(proc []*os.Process){
+	fmt.Printf("\nKillProcess : %v", proc)
+	for _, p := range(proc) {
+		p.Kill()
+	}
+}
+
+func CreateWorker(threadNumber int, pageNumber int, initialPort int) []*os.Process {
+	// create a map to store Process 
+	proc := make([]*os.Process, 0)
+	
+	// each webdriver need a different port 
+	for i:=0; i<threadNumber; i++ {
+		currentProc := StartProcess(initialPort+i+1)
+		proc = append(proc, currentProc)
+	}
+
+	fmt.Printf("\n CreateWorkerProcess : %v", proc)
+
+	return proc
+}
+
+
+// Start setup and start the main process
+func Start(comp string) {
+	//initial service
+	wd := initService(port)
+	// captcha checking -> if captcha 
+	signIn(wd)
+
+	encodedURL := searchFilteredPage(wd, comp)
+
 	// IMPLEMENT SESSIONS SPLITTING
 	// Go to filtered search page
 	if err := wd.Get(encodedURL); err != nil {
 		panic(err)
 	}
-
+	
+	// MAIN CRAWLING
 	scroll(wd, 2)
 	var lenPage int = lenPage(wd)
 	fmt.Printf("\nThere is %d page to crawl !", lenPage)
+
+	procToKill := CreateWorker(2, 10, port)
 
 	// Replace SlicePrint with storing function
 	for i := 1; i < lenPage+1; i++ {
@@ -340,6 +385,9 @@ func Start(comp string) {
 		//locText := wbToStringSlice(location)
 		//SlicePrint(locText)
 	}
+
+	// Exit worker
+	KillProcess(procToKill)
 
 	wd.Close()
 	wd.Quit()
