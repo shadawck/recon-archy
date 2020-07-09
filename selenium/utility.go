@@ -7,10 +7,10 @@ import (
 	"log"
 	"net/url"
 	"os"
-	//"os/exec"
+
+	"errors"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/matryer/try"
 	"github.com/tebeka/selenium"
@@ -54,7 +54,7 @@ func SlicePrint(s []string) {
 }
 
 // DecodeReconstruct Decode the searchURL and build the search URL for the main company
-func DecodeReconstruct(searchURL string) (string, error){
+func DecodeReconstruct(searchURL string) (string, error) {
 	decodedURL, err := url.QueryUnescape(searchURL)
 	if err != nil {
 		log.Fatal(err)
@@ -79,7 +79,7 @@ func DecodeReconstruct(searchURL string) (string, error){
 
 // DecodeRetry Attempt getting currentURL
 func DecodeRetry(wd selenium.WebDriver) string {
-	
+
 	var encodedURL string
 	err := try.Do(
 
@@ -94,7 +94,7 @@ func DecodeRetry(wd selenium.WebDriver) string {
 
 			// Wait 100 ms between each retry (to load the page)
 			if err != nil || encodedURL == "" {
-				scroll(wd,2)
+				scroll(wd, 2)
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
@@ -102,10 +102,8 @@ func DecodeRetry(wd selenium.WebDriver) string {
 		})
 
 	if err != nil {
-		log.Fatalln("error:", err)
 		wd.Quit()
+		log.Fatalln("error:", err)
 	}
 	return encodedURL
 }
-
-

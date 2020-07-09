@@ -18,7 +18,6 @@ import (
 	"github.com/tebeka/selenium/firefox"
 )
 
-
 const (
 	// These paths will be different on your system.
 	seleniumPath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar"
@@ -30,13 +29,14 @@ const (
 	port            = 4444
 )
 
-
 // Get number of search page found
 func lenPage(wd selenium.WebDriver) int {
 	// Scroll the page to ensure page is entirely loaded
 	scroll(wd, 2)
 
 	pageNumber := findsRetry(wd, ".artdeco-pagination__indicator--number.ember-view")
+
+	fmt.Printf("\nPageNumber findRetry(): %v", pageNumber)
 
 	lenPage, err := pageNumber[len(pageNumber)-1].Text()
 	if err != nil {
@@ -89,7 +89,7 @@ func scroll(wd selenium.WebDriver, x int) {
 	}
 }
 
-func initService(port int) selenium.WebDriver{
+func initService(port int) selenium.WebDriver {
 
 	opts := []selenium.ServiceOption{
 		//selenium.StartFrameBuffer(),           // Start an X frame buffer for the browser to run in.
@@ -99,7 +99,6 @@ func initService(port int) selenium.WebDriver{
 
 	selenium.SetDebug(false)
 	service, err := selenium.NewSeleniumService(seleniumPath, port, opts...)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -107,13 +106,19 @@ func initService(port int) selenium.WebDriver{
 
 	caps := selenium.Capabilities{"browserName": "firefox"}
 	caps.AddFirefox(firefox.Capabilities{Args: []string{"--headless", "--safe-mode"}})
-	wd, err := selenium.NewRemote(caps, "http://localhost:"+ strconv.Itoa(port) + "/wd/hub")
+
+	fmt.Printf("\nStart New Remote on port: %s ", strconv.Itoa(port))
+	remoteAdress := "http://localhost:" + strconv.Itoa(port) + "/wd/hub"
+	wd, err := selenium.NewRemote(caps, remoteAdress)
 	if err != nil {
+		log.Fatal(err)
 		panic(err)
 	}
+	fmt.Printf("\nRemote management at : %s", remoteAdress)
+
 	// Wait for Ctr-C or Killing signal
 	CloseHandler(wd)
-	
+
 	return wd
 }
 
@@ -136,7 +141,7 @@ func captchaCheck(wd selenium.WebDriver) {
 
 // signIn perform Linkedin SignIn
 func signIn(wd selenium.WebDriver) {
-		// Navigate to Linkedin
+	// Navigate to Linkedin
 	fmt.Printf("\nNavigating to Signup")
 	if err := wd.Get("https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin"); err != nil {
 		panic(err)
@@ -207,7 +212,6 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 
 	if err != nil {
 		panic(err)
-		wd.Quit()
 	}
 	return found
 }
@@ -225,6 +229,7 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 			// Wait 100 ms between each retry (to load the page)
 			if err != nil {
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
 			fmt.Printf("\n (attempts %d)", attempt)
@@ -233,15 +238,13 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 
 	if err != nil {
 		panic(err)
-		wd.Quit()
 	}
 	return found
 }
 
 // searchPage process company name and go to filtered page result for crawling
 // Implement Filtering Options
-func searchFilteredPage(wd selenium.WebDriver, comp string) string{
-	const LITTLE_WAIT = time.Millisecond * 100
+func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 	/* SOLUTION 1 - INPUT 1 : Navigate to the companies page with just the companies name */
 	// Navigate to Linkedin companies search result (for givven company name "comp")
 
@@ -252,7 +255,7 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string{
 
 	fmt.Printf("\nSearching Company Page")
 	time.Sleep(LITTLE_WAIT)
-	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view") 	// click on the first company found in the search result
+	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view") // click on the first company found in the search result
 	fmt.Printf("\nCompany found")
 
 	// click on the second link on the slice. In fact image link can't be clicked so just use the second link
@@ -298,45 +301,59 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string{
 
 }
 
-// StartProcess Start an OS Process : Used to start selenium standalone server on n port for multiple webdriver worker 
-func StartProcess(port int) *os.Process  {
-	cmd := exec.Command("bash", "-c", "java -jar " + seleniumPath + " -port " + strconv.Itoa(port))
+// StartProcess Start an OS Process : Used to start selenium standalone server on n port for multiple webdriver worker
+func StartProcess(port int) *os.Process {
+	cmd := exec.Command("bash", "-c", "java -jar "+seleniumPath+" -port "+strconv.Itoa(port))
 	if err := cmd.Start(); err != nil {
-    	log.Printf("Failed to start cmd: %v", err)
+		log.Printf("Failed to start cmd: %v", err)
 	}
 	fmt.Printf(" \nStartProcess : %v", cmd.Process)
 	return cmd.Process
 }
 
 // KillProcess Kill process started by StartProcess()
-func KillProcess(proc []*os.Process){
+func KillProcess(proc []*os.Process) {
 	fmt.Printf("\nKillProcess : %v", proc)
-	for _, p := range(proc) {
+	for _, p := range proc {
 		p.Kill()
 	}
 }
 
+// CreateWorker Spawn "t" webdriver simulate multithreading and reduce runtime
 func CreateWorker(threadNumber int, pageNumber int, initialPort int) []*os.Process {
-	// create a map to store Process 
-	proc := make([]*os.Process, 0)
-	
-	// each webdriver need a different port 
-	for i:=0; i<threadNumber; i++ {
-		currentProc := StartProcess(initialPort+i+1)
+	// create a map to store Process
+	var proc []*os.Process
+
+	// each webdriver need a different port
+	for i := 0; i < threadNumber; i++ {
+		currentProc := StartProcess(initialPort + i + 1)
 		proc = append(proc, currentProc)
 	}
 
-	fmt.Printf("\n CreateWorkerProcess : %v", proc)
+	// Create WebDriver map to give instruction to each WebDriver
+	fmt.Printf("\nInitialising worker")
 
+	var workers []selenium.WebDriver
+	for i := 0; i < threadNumber; i++ {
+		wd := initService(initialPort + i + 1)
+		time.Sleep(time.Second * 5)
+		workers = append(workers, wd)
+	}
+
+	//for _, wd := range workers {
+	//	fmt.Printf("\nSession ID : %s", wd.SessionID())
+	//}
+	//
+	//fmt.Printf("\nCreateWorkerProcess : %#v", proc)
 	return proc
 }
-
 
 // Start setup and start the main process
 func Start(comp string) {
 	//initial service
 	wd := initService(port)
-	// captcha checking -> if captcha 
+
+	// captcha checking -> if captcha
 	signIn(wd)
 
 	encodedURL := searchFilteredPage(wd, comp)
@@ -346,49 +363,49 @@ func Start(comp string) {
 	if err := wd.Get(encodedURL); err != nil {
 		panic(err)
 	}
-	
+
 	// MAIN CRAWLING
 	scroll(wd, 2)
-	var lenPage int = lenPage(wd)
-	fmt.Printf("\nThere is %d page to crawl !", lenPage)
+	//var lenPage int = lenPage(wd)
+	//fmt.Printf("\nThere is %d page to crawl !", lenPage)
 
-	procToKill := CreateWorker(2, 10, port)
+	// Seems to be impossible to createWorker outside of Start Function
+	//procToKill := CreateWorker(2, 10, port)
 
 	// Replace SlicePrint with storing function
-	for i := 1; i < lenPage+1; i++ {
-
-		nextPage(wd, i, encodedURL)
-		scroll(wd, 2)
-
-		//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
-		//users := findsRetry(wd, ".actor-name")
-		//
-		//usersText := wbToStringSlice(users)
-		//SlicePrint(usersText)
-		//
-		//profileURL := findsRetry(wd, ".search-result__result-link")
-		//
-		//// filter profile url
-		//var selection []selenium.WebElement
-		//for i := 0; i < len(profileURL); i += 2 {
-		//	selection = append(selection, profileURL[i])
-		//}
-		//
-		//profileURLText := wbAttrToStringSlice(selection, "href")
-		//SlicePrint(profileURLText)
-
-		description := findsRetry(wd, ".subline-level-1")
-		descText := wbToStringSlice(description)
-		WriteFile("./data/data_"+comp, descText)
-
-		//location := findsRetry(wd, ".subline-level-2")
-		//locText := wbToStringSlice(location)
-		//SlicePrint(locText)
-	}
+	//for i := 1; i < lenPage+1; i++ {
+	//
+	//	nextPage(wd, i, encodedURL)
+	//	scroll(wd, 2)
+	//
+	//	//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+	//	//users := findsRetry(wd, ".actor-name")
+	//	//
+	//	//usersText := wbToStringSlice(users)
+	//	//SlicePrint(usersText)
+	//	//
+	//	//profileURL := findsRetry(wd, ".search-result__result-link")
+	//	//
+	//	//// filter profile url
+	//	//var selection []selenium.WebElement
+	//	//for i := 0; i < len(profileURL); i += 2 {
+	//	//	selection = append(selection, profileURL[i])
+	//	//}
+	//	//
+	//	//profileURLText := wbAttrToStringSlice(selection, "href")
+	//	//SlicePrint(profileURLText)
+	//
+	//	description := findsRetry(wd, ".subline-level-1")
+	//	descText := wbToStringSlice(description)
+	//	WriteFile("./data/data_"+comp, descText)
+	//
+	//	//location := findsRetry(wd, ".subline-level-2")
+	//	//locText := wbToStringSlice(location)
+	//	//SlicePrint(locText)
+	//}
 
 	// Exit worker
-	KillProcess(procToKill)
-
+	//KillProcess(procToKill)
 	wd.Close()
 	wd.Quit()
 }
