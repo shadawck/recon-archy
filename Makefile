@@ -26,6 +26,7 @@ launch:
 
 clean:
 	rm -rf .vscode
+	rm -rf *.log
 
 fclean: clean
 	rm -rf $(MODULE)

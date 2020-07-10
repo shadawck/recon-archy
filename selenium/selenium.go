@@ -37,7 +37,7 @@ func lenPage(wd selenium.WebDriver) int {
 
 	pageNumber := findsRetry(wd, ".artdeco-pagination__indicator--number.ember-view")
 
-	fmt.Printf("\nPageNumber findRetry(): %v", pageNumber)
+	//fmt.Printf("\nPageNumber findRetry(): %v", pageNumber)
 
 	lenPage, err := pageNumber[len(pageNumber)-1].Text()
 	if err != nil {
@@ -207,7 +207,7 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 				time.Sleep(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			fmt.Printf("\n (attempts %d)", attempt)
+			fmt.Printf("\n (attempts %d) for %v", attempt, wd.SessionID())
 			return attempt < 5, err
 		})
 
@@ -233,7 +233,7 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 				time.Sleep(time.Millisecond * 100)
 			}
 			// attempt < 5 -> try 5 time
-			fmt.Printf("\n (attempts %d)", attempt)
+			fmt.Printf("\n (attempts %d) for %v", attempt, wd.SessionID())
 			return attempt < 5, err
 		})
 
@@ -321,7 +321,7 @@ func KillProcess(proc []*os.Process) {
 }
 
 // CreateWorker Spawn "t" webdriver simulate multithreading and reduce runtime
-func CreateWorker(threadNumber int, initialPort int) []selenium.WebDriver {
+func CreateWorker(currentWd selenium.WebDriver, threadNumber int, initialPort int) []selenium.WebDriver {
 	// create a map to store Process
 	//var proc []*os.Process
 
@@ -334,9 +334,9 @@ func CreateWorker(threadNumber int, initialPort int) []selenium.WebDriver {
 
 	// Create WebDriver map to give instruction to each WebDriver
 	fmt.Printf("\nInitialising worker")
-
 	var workers []selenium.WebDriver
-	for i := 1; i <= threadNumber; i++ {
+	workers = append(workers, currentWd)
+	for i := 1; i < threadNumber; i++ {
 		wd := initService(initialPort + i)
 		workers = append(workers, wd)
 	}
@@ -366,10 +366,14 @@ func calcSplitting(lenPage int, threadNumber int) [][]int {
 // divide page crawling between webdriver "worker"
 // Useless to perform repetitive action against all webDriver. The initial WebDriver perform the basic action
 // and transmit results to workers.
-func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, lenPage int, url string, startPage int, stopPage int, comp string) {
+func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPage int, url string, startPage int, stopPage int, comp string) {
 	defer wg.Done()
 
-	signIn(wd)
+	// worker 1 (initial wd) is aleardy signin
+	if id != "worker_1" {
+		fmt.Printf("%s signing", id)
+		signIn(wd)
+	}
 
 	for i := startPage; i <= stopPage; i++ {
 		nextPage(wd, i, url)
@@ -393,7 +397,7 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, lenPage int, url 
 
 		description := findsRetry(wd, ".subline-level-1")
 		descText := wbToStringSlice(description)
-		WriteFile("./data/data_"+comp+wd.SessionID(), descText)
+		WriteFile("./data/data_"+comp+id, descText)
 
 		//location := findsRetry(wd, ".subline-level-2")
 		//locText := wbToStringSlice(location)
@@ -407,7 +411,7 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, lenPage int, url 
 // Start setup and start the main process
 func Start(comp string) {
 
-	threadNumber := 3
+	threadNumber := 4
 
 	// Initial Webdriver
 	wd := initService(port)
@@ -431,20 +435,16 @@ func Start(comp string) {
 
 	// Spawn ThreadNumber of worker
 	var workers []selenium.WebDriver
-	workers = CreateWorker(threadNumber, port)
+	workers = CreateWorker(wd, threadNumber, port)
 	for i, wd := range workers {
 		fmt.Printf("\nSession ID for worker %d : %v", i, wd.SessionID())
 	}
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go populateWorker(&wg, workers[0], lenPage, encodedURL, page[0][0], page[0][1], comp)
-	wg.Add(1)
-	go populateWorker(&wg, workers[1], lenPage, encodedURL, page[1][0], page[1][1], comp)
-	wg.Add(1)
-	go populateWorker(&wg, workers[2], lenPage, encodedURL, page[2][0], page[2][1], comp)
-	wg.Add(1)
-	go populateWorker(&wg, workers[3], lenPage, encodedURL, page[3][0], page[3][1], comp)
+	for i := 0; i < threadNumber; i++ {
+		wg.Add(1)
+		go populateWorker(&wg, workers[i], "worker_"+strconv.Itoa(i), lenPage, encodedURL, page[i][0], page[i][1], comp)
+	}
 
 	fmt.Println("\nMain: Waiting for workers to finish")
 	wg.Wait()
