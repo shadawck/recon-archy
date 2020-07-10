@@ -6,5 +6,5 @@ import (
 
 func main() {
 
-	selenium.Start("novelab")
+	selenium.Start("kuka")
 }

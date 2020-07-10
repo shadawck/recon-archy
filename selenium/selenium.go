@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -320,42 +321,98 @@ func KillProcess(proc []*os.Process) {
 }
 
 // CreateWorker Spawn "t" webdriver simulate multithreading and reduce runtime
-func CreateWorker(threadNumber int, pageNumber int, initialPort int) []*os.Process {
+func CreateWorker(threadNumber int, initialPort int) []selenium.WebDriver {
 	// create a map to store Process
-	var proc []*os.Process
+	//var proc []*os.Process
 
+	// Can be useful for later. For now, server are started manualy or from external script
 	// each webdriver need a different port
-	for i := 0; i < threadNumber; i++ {
-		currentProc := StartProcess(initialPort + i + 1)
-		proc = append(proc, currentProc)
-	}
+	//for i := 0; i < threadNumber; i++ {
+	//	currentProc := StartProcess(initialPort + i)
+	//	proc = append(proc, currentProc)
+	//}
 
 	// Create WebDriver map to give instruction to each WebDriver
 	fmt.Printf("\nInitialising worker")
 
 	var workers []selenium.WebDriver
-	for i := 0; i < threadNumber; i++ {
-		wd := initService(initialPort + i + 1)
-		time.Sleep(time.Second * 5)
+	for i := 1; i <= threadNumber; i++ {
+		wd := initService(initialPort + i)
 		workers = append(workers, wd)
 	}
 
-	//for _, wd := range workers {
-	//	fmt.Printf("\nSession ID : %s", wd.SessionID())
-	//}
-	//
-	//fmt.Printf("\nCreateWorkerProcess : %#v", proc)
-	return proc
+	return workers
+}
+
+func calcSplitting(lenPage int, threadNumber int) [][]int {
+	r := lenPage / threadNumber
+	//rest := lenPage % threadNumber
+	//fmt.Printf("\nrest %d", rest)
+	//fmt.Printf("\nStep : %d", r)
+
+	var step [][]int
+	var tmp []int
+
+	for i := 0; i < threadNumber; i++ {
+		tmp = nil // terrible way to do this. Think of a nicer implementation for callSplitting
+		tmp = append(tmp, (i*r)+1)
+		tmp = append(tmp, (i+1)*r)
+		step = append(step, tmp)
+	}
+	return step
+}
+
+// PerformSelenium action like signIn, searching and crawling but for map of webdriver. Need to
+// divide page crawling between webdriver "worker"
+// Useless to perform repetitive action against all webDriver. The initial WebDriver perform the basic action
+// and transmit results to workers.
+func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, lenPage int, url string, startPage int, stopPage int, comp string) {
+	defer wg.Done()
+
+	signIn(wd)
+
+	for i := startPage; i <= stopPage; i++ {
+		nextPage(wd, i, url)
+		scroll(wd, 2)
+		//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
+		//users := findsRetry(wd, ".actor-name")
+		//
+		//usersText := wbToStringSlice(users)
+		//SlicePrint(usersText)
+		//
+		//profileURL := findsRetry(wd, ".search-result__result-link")
+		//
+		//// filter profile url
+		//var selection []selenium.WebElement
+		//for i := 0; i < len(profileURL); i += 2 {
+		//	selection = append(selection, profileURL[i])
+		//}
+		//
+		//profileURLText := wbAttrToStringSlice(selection, "href")
+		//SlicePrint(profileURLText)
+
+		description := findsRetry(wd, ".subline-level-1")
+		descText := wbToStringSlice(description)
+		WriteFile("./data/data_"+comp+wd.SessionID(), descText)
+
+		//location := findsRetry(wd, ".subline-level-2")
+		//locText := wbToStringSlice(location)
+		//SlicePrint(locText)
+	}
+	wd.Close()
+	wd.Quit()
+
 }
 
 // Start setup and start the main process
 func Start(comp string) {
-	//initial service
-	wd := initService(port)
 
+	threadNumber := 3
+
+	// Initial Webdriver
+	wd := initService(port)
 	// captcha checking -> if captcha
 	signIn(wd)
-
 	encodedURL := searchFilteredPage(wd, comp)
 
 	// IMPLEMENT SESSIONS SPLITTING
@@ -364,15 +421,35 @@ func Start(comp string) {
 		panic(err)
 	}
 
-	// MAIN CRAWLING
+	//// MAIN CRAWLING
 	scroll(wd, 2)
-	//var lenPage int = lenPage(wd)
-	//fmt.Printf("\nThere is %d page to crawl !", lenPage)
+	var lenPage int = lenPage(wd)
+	fmt.Printf("\nThere is %d page to crawl !", lenPage)
 
-	// Seems to be impossible to createWorker outside of Start Function
-	//procToKill := CreateWorker(2, 10, port)
+	page := calcSplitting(lenPage, threadNumber)
+	fmt.Printf("\n%v", page)
 
-	// Replace SlicePrint with storing function
+	// Spawn ThreadNumber of worker
+	var workers []selenium.WebDriver
+	workers = CreateWorker(threadNumber, port)
+	for i, wd := range workers {
+		fmt.Printf("\nSession ID for worker %d : %v", i, wd.SessionID())
+	}
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go populateWorker(&wg, workers[0], lenPage, encodedURL, page[0][0], page[0][1], comp)
+	wg.Add(1)
+	go populateWorker(&wg, workers[1], lenPage, encodedURL, page[1][0], page[1][1], comp)
+	wg.Add(1)
+	go populateWorker(&wg, workers[2], lenPage, encodedURL, page[2][0], page[2][1], comp)
+	wg.Add(1)
+	go populateWorker(&wg, workers[3], lenPage, encodedURL, page[3][0], page[3][1], comp)
+
+	fmt.Println("\nMain: Waiting for workers to finish")
+	wg.Wait()
+	fmt.Println("\nMain: Completed")
+
 	//for i := 1; i < lenPage+1; i++ {
 	//
 	//	nextPage(wd, i, encodedURL)
@@ -404,8 +481,6 @@ func Start(comp string) {
 	//	//SlicePrint(locText)
 	//}
 
-	// Exit worker
-	//KillProcess(procToKill)
-	wd.Close()
-	wd.Quit()
+	//wd.Close()
+	//wd.Quit()
 }
