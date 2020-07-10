@@ -65,7 +65,7 @@ func DecodeReconstruct(searchURL string) (string, error) {
 	SlicePrint(spl)
 
 	if len(spl) < 2 {
-		fmt.Printf("\nthere's an error here")
+		fmt.Printf("\nNot the waited URL - Retrying")
 		return "", errors.New("Getting company page and not filtered page")
 	}
 
@@ -94,6 +94,7 @@ func DecodeRetry(wd selenium.WebDriver) string {
 
 			// Wait 100 ms between each retry (to load the page)
 			if err != nil || encodedURL == "" {
+				fmt.Printf("\n (attempts %d) for %v for DecodeRetry Mechanism", attempt, wd.SessionID())
 				scroll(wd, 2)
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
@@ -102,7 +103,6 @@ func DecodeRetry(wd selenium.WebDriver) string {
 		})
 
 	if err != nil {
-		wd.Quit()
 		log.Fatalln("error:", err)
 	}
 	return encodedURL

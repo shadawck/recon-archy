@@ -35,7 +35,7 @@ func lenPage(wd selenium.WebDriver) int {
 	// Scroll the page to ensure page is entirely loaded
 	scroll(wd, 2)
 
-	pageNumber := findsRetry(wd, ".artdeco-pagination__indicator--number.ember-view")
+	pageNumber := findsRetry(wd, ".artdeco-pagination__indicator--number.ember-view", "Page Number")
 
 	//fmt.Printf("\nPageNumber findRetry(): %v", pageNumber)
 
@@ -135,11 +135,6 @@ func CloseHandler(wd selenium.WebDriver) {
 	}()
 }
 
-// captchaCheck check if there is a google captcha on the current page
-func captchaCheck(wd selenium.WebDriver) {
-	return
-}
-
 // signIn perform Linkedin SignIn
 func signIn(wd selenium.WebDriver) {
 	// Navigate to Linkedin
@@ -183,7 +178,7 @@ func signIn(wd selenium.WebDriver) {
 	}
 
 	// Click the SignIn button
-	btn := findRetry(wd, ".btn__primary--large")
+	btn := findRetry(wd, ".btn__primary--large", "SignIn Button")
 
 	if err := btn.Click(); err != nil {
 		panic(err)
@@ -192,8 +187,24 @@ func signIn(wd selenium.WebDriver) {
 	fmt.Printf("\nLogged In !")
 }
 
+func captchaCheck(wd selenium.WebDriver) bool {
+	captcha, err := wd.FindElement(selenium.ByID, "captchaInternalPath")
+	if err != nil {
+		panic(err)
+	}
+	if captcha != nil {
+		fmt.Printf("\nThere is a CAPTCHA to solve on your account")
+		fmt.Printf("\nLogin in GUI mode to solve it and relauch ReconArchy")
+		captchaBool := true
+		return captchaBool
+	}
+	captchaBool := false
+	return captchaBool
+
+}
+
 // findRetry Retry for findElement function
-func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
+func findRetry(wd selenium.WebDriver, selector string, id string) selenium.WebElement {
 
 	var found selenium.WebElement
 	err := try.Do(
@@ -204,21 +215,22 @@ func findRetry(wd selenium.WebDriver, selector string) selenium.WebElement {
 
 			// Wait 100 ms between each retry
 			if err != nil {
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 500)
 			}
 			// attempt < 5 -> try 5 time
-			fmt.Printf("\n (attempts %d) for %v", attempt, wd.SessionID())
+			fmt.Printf("\n (attempts %d) for %v for grabing: %s", attempt, wd.SessionID(), id)
 			return attempt < 5, err
 		})
 
 	if err != nil {
+		wd.Quit()
 		panic(err)
 	}
 	return found
 }
 
 // findRetry Retry for findElements function
-func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
+func findsRetry(wd selenium.WebDriver, selector string, id string) []selenium.WebElement {
 
 	var found []selenium.WebElement
 	err := try.Do(
@@ -229,15 +241,16 @@ func findsRetry(wd selenium.WebDriver, selector string) []selenium.WebElement {
 
 			// Wait 100 ms between each retry (to load the page)
 			if err != nil {
-				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
-				time.Sleep(time.Millisecond * 100)
+				//wd.SetImplicitWaitTimeout(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 500)
 			}
 			// attempt < 5 -> try 5 time
-			fmt.Printf("\n (attempts %d) for %v", attempt, wd.SessionID())
+			fmt.Printf("\n (attempts %d) for %v for grabing: %s", attempt, wd.SessionID(), id)
 			return attempt < 5, err
 		})
 
 	if err != nil {
+		wd.Quit()
 		panic(err)
 	}
 	return found
@@ -256,7 +269,7 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 
 	fmt.Printf("\nSearching Company Page")
 	time.Sleep(LITTLE_WAIT)
-	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view") // click on the first company found in the search result
+	firstCompanyLink := findsRetry(wd, ".app-aware-link.ember-view", "company-link ") // click on the first company found in the search result
 	fmt.Printf("\nCompany found")
 
 	// click on the second link on the slice. In fact image link can't be clicked so just use the second link
@@ -274,7 +287,7 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 	fmt.Printf("\nGetting %s employees", comp)
 	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 
-	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block")
+	employees := findRetry(wd, ".ember-view.link-without-visited-state.inline-block", "employee")
 	if err := employees.Click(); err != nil {
 		panic(err)
 	}
@@ -285,16 +298,9 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 	scroll(wd, 2) // SUPER IMPORRTANT SCROLL
 	wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 
-	currentURL, err := wd.CurrentURL()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("\nThe current url to be decoded is %s", currentURL)
+	//fmt.Printf("\nThe current url to be decoded is %s", currentURL)
 
 	fmt.Printf("\nDecoding URL...")
-	//time.Sleep(time.Second * 3)
-	//encodedURL := DecodeReconstruct(currentURL)
 	encodedURL := DecodeRetry(wd)
 	fmt.Printf("\nURL Re-encoded...")
 
@@ -370,14 +376,15 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPag
 	defer wg.Done()
 
 	// worker 1 (initial wd) is aleardy signin
-	if id != "worker_1" {
-		fmt.Printf("%s signing", id)
+	if id != "worker_0" {
+		fmt.Printf("\n%s signing", id)
 		signIn(wd)
 	}
 
 	for i := startPage; i <= stopPage; i++ {
 		nextPage(wd, i, url)
 		scroll(wd, 2)
+		fmt.Printf("\n%s try to extract page number %d", id, i)
 		//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
 		//users := findsRetry(wd, ".actor-name")
 		//
@@ -395,7 +402,7 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPag
 		//profileURLText := wbAttrToStringSlice(selection, "href")
 		//SlicePrint(profileURLText)
 
-		description := findsRetry(wd, ".subline-level-1")
+		description := findsRetry(wd, ".subline-level-1", "Description")
 		descText := wbToStringSlice(description)
 		WriteFile("./data/data_"+comp+id, descText)
 
@@ -417,6 +424,14 @@ func Start(comp string) {
 	wd := initService(port)
 	// captcha checking -> if captcha
 	signIn(wd)
+
+	captcha := captchaCheck(wd)
+	if captcha == true {
+		wd.Close()
+		wd.Quit()
+		os.Exit()
+	}
+
 	encodedURL := searchFilteredPage(wd, comp)
 
 	// IMPLEMENT SESSIONS SPLITTING
@@ -431,7 +446,10 @@ func Start(comp string) {
 	fmt.Printf("\nThere is %d page to crawl !", lenPage)
 
 	page := calcSplitting(lenPage, threadNumber)
-	fmt.Printf("\n%v", page)
+	fmt.Printf("\nCalulating page range")
+	for i, v := range page {
+		fmt.Printf("\nworker_%d extract range : %v", i, v)
+	}
 
 	// Spawn ThreadNumber of worker
 	var workers []selenium.WebDriver
@@ -450,37 +468,4 @@ func Start(comp string) {
 	wg.Wait()
 	fmt.Println("\nMain: Completed")
 
-	//for i := 1; i < lenPage+1; i++ {
-	//
-	//	nextPage(wd, i, encodedURL)
-	//	scroll(wd, 2)
-	//
-	//	//wd.SetImplicitWaitTimeout(LITTLE_WAIT)
-	//	//users := findsRetry(wd, ".actor-name")
-	//	//
-	//	//usersText := wbToStringSlice(users)
-	//	//SlicePrint(usersText)
-	//	//
-	//	//profileURL := findsRetry(wd, ".search-result__result-link")
-	//	//
-	//	//// filter profile url
-	//	//var selection []selenium.WebElement
-	//	//for i := 0; i < len(profileURL); i += 2 {
-	//	//	selection = append(selection, profileURL[i])
-	//	//}
-	//	//
-	//	//profileURLText := wbAttrToStringSlice(selection, "href")
-	//	//SlicePrint(profileURLText)
-	//
-	//	description := findsRetry(wd, ".subline-level-1")
-	//	descText := wbToStringSlice(description)
-	//	WriteFile("./data/data_"+comp, descText)
-	//
-	//	//location := findsRetry(wd, ".subline-level-2")
-	//	//locText := wbToStringSlice(location)
-	//	//SlicePrint(locText)
-	//}
-
-	//wd.Close()
-	//wd.Quit()
 }
