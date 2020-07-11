@@ -475,7 +475,7 @@ func Start(comp string, threadNumber int) {
 	wg.Wait()
 
 	// Kill selenium server
-	//KillProcess(procToKill)
+	// KillProcess(procToKill)
 
 	fmt.Println("\nMain: Completed")
 	fmt.Println("\nCrawled result in /data/")
