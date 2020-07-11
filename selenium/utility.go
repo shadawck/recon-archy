@@ -62,8 +62,6 @@ func DecodeReconstruct(searchURL string) (string, error) {
 	}
 
 	spl := strings.Split(decodedURL, "\"")
-	SlicePrint(spl)
-
 	if len(spl) < 2 {
 		fmt.Printf("\nNot the waited URL - Retrying")
 		return "", errors.New("Getting company page and not filtered page")

@@ -414,9 +414,7 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPag
 }
 
 // Start setup and start the main process
-func Start(comp string) {
-
-	threadNumber := 2
+func Start(comp string, threadNumber int) {
 
 	// Initial Webdriver
 	wd := initService(port)
@@ -465,5 +463,6 @@ func Start(comp string) {
 	fmt.Println("\nMain: Waiting for workers to finish")
 	wg.Wait()
 	fmt.Println("\nMain: Completed")
+	fmt.Println("\nCrawled result in /data/")
 
 }
