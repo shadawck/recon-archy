@@ -1,0 +1,7 @@
+#!/bin/bash
+
+#for ((c=0; c < $1; c++ ))
+#do
+#     echo "starting worker $c"
+java -jar ~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar -port $(()) &>/dev/null &
+#done
