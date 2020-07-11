@@ -429,7 +429,7 @@ func Start(comp string) {
 	if captcha == true {
 		wd.Close()
 		wd.Quit()
-		os.Exit()
+		os.Exit(1)
 	}
 
 	encodedURL := searchFilteredPage(wd, comp)

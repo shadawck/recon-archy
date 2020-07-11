@@ -94,7 +94,7 @@ func DecodeRetry(wd selenium.WebDriver) string {
 
 			// Wait 100 ms between each retry (to load the page)
 			if err != nil || encodedURL == "" {
-				fmt.Printf("\n (attempts %d) for %v for DecodeRetry Mechanism", attempt, wd.SessionID())
+				fmt.Printf("\n (attempts %d) for %v for DecodeRetry", attempt, wd.SessionID())
 				scroll(wd, 2)
 				wd.SetImplicitWaitTimeout(time.Millisecond * 100)
 			}
