@@ -308,7 +308,8 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 // StartProcess Start an OS Process : Used to start selenium standalone server on n port for multiple webdriver worker
 func StartProcess(port int) *os.Process {
 
-	cmd := exec.Command("bash", "-c", "java -jar "+seleniumPath+" -port "+strconv.Itoa(port)+" &>/dev/null &")
+	//cmd := exec.Command("bash", "-c", "java -jar "+seleniumPath+" -port "+strconv.Itoa(port)+" &>/dev/null &")
+	cmd := exec.Command("bash", "-c", "./init-server "+strconv.Itoa(port))
 	if err := cmd.Start(); err != nil {
 		log.Printf("\nFailed to start cmd for selenium standalone server: %v", err)
 	}
@@ -335,7 +336,7 @@ func CreateSeleniumServer(threadNumber int, initialPort int) []*os.Process {
 		currentProc := StartProcess(initialPort + i)
 		fmt.Printf("\nLaunch standalone selenium server on port %d", initialPort+i)
 		proc = append(proc, currentProc)
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second * 5)
 	}
 	return proc
 }
