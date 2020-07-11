@@ -188,17 +188,14 @@ func signIn(wd selenium.WebDriver) {
 }
 
 func captchaCheck(wd selenium.WebDriver) bool {
-	captcha, err := wd.FindElement(selenium.ByID, "captchaInternalPath")
+	_, err := wd.FindElement(selenium.ByID, "captchaInternalPath")
 	if err != nil {
-		panic(err)
-	}
-	if captcha != nil {
-		fmt.Printf("\nThere is a CAPTCHA to solve on your account")
-		fmt.Printf("\nLogin in GUI mode to solve it and relauch ReconArchy")
-		captchaBool := true
+		captchaBool := false
 		return captchaBool
 	}
-	captchaBool := false
+	fmt.Printf("\nThere is a CAPTCHA to solve on your account")
+	fmt.Printf("\nLogin in GUI mode to solve it and relauch ReconArchy")
+	captchaBool := true
 	return captchaBool
 
 }
@@ -342,6 +339,7 @@ func CreateWorker(currentWd selenium.WebDriver, threadNumber int, initialPort in
 	fmt.Printf("\nInitialising worker")
 	var workers []selenium.WebDriver
 	workers = append(workers, currentWd)
+	// start at 1 because the initial worker (by default on 4444) is already running
 	for i := 1; i < threadNumber; i++ {
 		wd := initService(initialPort + i)
 		workers = append(workers, wd)
@@ -360,7 +358,7 @@ func calcSplitting(lenPage int, threadNumber int) [][]int {
 	var tmp []int
 
 	for i := 0; i < threadNumber; i++ {
-		tmp = nil // terrible way to do this. Think of a nicer implementation for callSplitting
+		tmp = nil // terrible way to do this. Think of a nicer implementation for calcSplitting
 		tmp = append(tmp, (i*r)+1)
 		tmp = append(tmp, (i+1)*r)
 		step = append(step, tmp)
@@ -368,7 +366,7 @@ func calcSplitting(lenPage int, threadNumber int) [][]int {
 	return step
 }
 
-// PerformSelenium action like signIn, searching and crawling but for map of webdriver. Need to
+// populateWorker populate worker with action like signIn, searching and crawling but for map of webdriver. Need to
 // divide page crawling between webdriver "worker"
 // Useless to perform repetitive action against all webDriver. The initial WebDriver perform the basic action
 // and transmit results to workers.
@@ -418,7 +416,7 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPag
 // Start setup and start the main process
 func Start(comp string) {
 
-	threadNumber := 4
+	threadNumber := 2
 
 	// Initial Webdriver
 	wd := initService(port)
