@@ -307,11 +307,13 @@ func searchFilteredPage(wd selenium.WebDriver, comp string) string {
 
 // StartProcess Start an OS Process : Used to start selenium standalone server on n port for multiple webdriver worker
 func StartProcess(port int) *os.Process {
-	cmd := exec.Command("bash", "-c", "java -jar "+seleniumPath+" -port "+strconv.Itoa(port))
+
+	cmd := exec.Command("bash", "-c", "java -jar "+seleniumPath+" -port "+strconv.Itoa(port)+" &>/dev/null &")
 	if err := cmd.Start(); err != nil {
-		log.Printf("Failed to start cmd: %v", err)
+		log.Printf("\nFailed to start cmd for selenium standalone server: %v", err)
 	}
 	fmt.Printf(" \nStartProcess : %v", cmd.Process)
+
 	return cmd.Process
 }
 
@@ -323,18 +325,23 @@ func KillProcess(proc []*os.Process) {
 	}
 }
 
+// CreateSeleniumServer Lauch selenium server for workers
+func CreateSeleniumServer(threadNumber int, initialPort int) []*os.Process {
+	//create a map to store Process
+	var proc []*os.Process
+	//Can be useful for later. For now, server are started manualy or from external script
+	//each webdriver need a different port
+	for i := 0; i < threadNumber; i++ {
+		currentProc := StartProcess(initialPort + i)
+		fmt.Printf("\nLaunch standalone selenium server on port %d", initialPort+i)
+		proc = append(proc, currentProc)
+		time.Sleep(time.Second * 3)
+	}
+	return proc
+}
+
 // CreateWorker Spawn "t" webdriver simulate multithreading and reduce runtime
 func CreateWorker(currentWd selenium.WebDriver, threadNumber int, initialPort int) []selenium.WebDriver {
-	// create a map to store Process
-	//var proc []*os.Process
-
-	// Can be useful for later. For now, server are started manualy or from external script
-	// each webdriver need a different port
-	//for i := 0; i < threadNumber; i++ {
-	//	currentProc := StartProcess(initialPort + i)
-	//	proc = append(proc, currentProc)
-	//}
-
 	// Create WebDriver map to give instruction to each WebDriver
 	fmt.Printf("\nInitialising worker")
 	var workers []selenium.WebDriver
@@ -416,6 +423,9 @@ func populateWorker(wg *sync.WaitGroup, wd selenium.WebDriver, id string, lenPag
 // Start setup and start the main process
 func Start(comp string, threadNumber int) {
 
+	// Lauching Selenium server for worker and InitialWorker to connect
+	//procToKill := CreateSeleniumServer(threadNumber, port)
+
 	// Initial Webdriver
 	wd := initService(port)
 	// captcha checking -> if captcha
@@ -462,6 +472,10 @@ func Start(comp string, threadNumber int) {
 
 	fmt.Println("\nMain: Waiting for workers to finish")
 	wg.Wait()
+
+	// Kill selenium server
+	//KillProcess(procToKill)
+
 	fmt.Println("\nMain: Completed")
 	fmt.Println("\nCrawled result in /data/")
 

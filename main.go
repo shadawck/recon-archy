@@ -63,7 +63,15 @@ func main() {
 
 					return nil
 				}, // Action
-			}, // Command command
+			}, // Crawl command
+			{
+				Name:  "analyse",
+				Usage: "Perform analysis on collected data.",
+			}, // Analyse command
+			{
+				Name:  "build",
+				Usage: "Build organisational chart of the company",
+			},
 		}, // Command main
 	} // App
 

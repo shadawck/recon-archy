@@ -43,7 +43,6 @@ func WriteFile(fileName string, buff []string) {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 //SlicePrint Print String Slice
