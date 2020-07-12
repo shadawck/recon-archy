@@ -23,10 +23,7 @@ const (
 	// These paths will be different on your system.
 	seleniumPath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/selenium-server-standalone.jar"
 	geckoDriverPath = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/geckodriver"
-	htmlunitpath    = "~/go/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/htmlunit-driver.jar"
 	LITTLE_WAIT     = time.Millisecond * 100
-	MEDIUM_WAIT     = time.Second
-	BIG_WAIT        = time.Second * 3
 	port            = 4444
 )
 
