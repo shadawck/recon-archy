@@ -1,5 +1,11 @@
 # recon-archy
-Linkedin Tools (and maybe later other source) to reconstruct a company hierarchy from scraping relations and jobs title
+Linkedin Tools (and maybe later other source) to reconstruct a company hierarchy from scraping relations and jobs title.
+
+### Status
+
+* [x] crawl   : Crawl employees specific to a company
+* [ ] analyse : Perform analysis on collected data.
+* [ ] build   : Build organisational chart of the company.
 
 ## Dependencies 
 First, make sure you have xdfb and openjdk-11-jre installed : 
@@ -23,7 +29,7 @@ sudo apt install firefox
 ## Requirements
 ### For an Installation **with** golang
 
-ReconArchy need golang if you want to install it with go. If go is not install on your system refer to [golang documentation](https://golang.org/doc/install) to install it. Then go to [Installation with golang](##installation)
+ReconArchy need golang if you want to install it with go. If go is not install on your system refer to [golang documentation](https://golang.org/doc/install) to install it. Then go to [Installation with golang](#golang)
 
 ### For an installation **without** Golang
 
@@ -51,10 +57,10 @@ Fortunatly the [tebeka/selenium](https://github.com/tebeka/selenium) (which is a
 cd $GOPATH/pkg/mod/github.com/tebeka/selenium@v0.9.9/vendor/
 go run init.go --alsologtostderr  --download_browsers --download_latest
 ```
-That's it, you're good to go to [usage](##usage)
+That's it, you're good to go to [usage](#usage)
 
 ### Binaries
-You can download the precompiled binaries in the [release](https://github.com/remiflavien1/recon-archy/releases) section.
+Precompiled binaries will be available with the first stable version in the [release](https://github.com/remiflavien1/recon-archy/releases) section.
 
 
 ### From source
